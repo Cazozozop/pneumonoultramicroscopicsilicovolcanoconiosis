@@ -1,4 +1,4 @@
-import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
+import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
 // We deliberately use the WASM/CPU backend so TrollAI also works when WebGPU
 // is unavailable (for example on browsers where WebGPU is disabled).
@@ -9,7 +9,7 @@ env.logLevel = 40; // ERROR
 
 const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
 const MODEL_DTYPE_GPU = "q4f16";
-const MODEL_DTYPE_WASM = "q4";
+const MODEL_DTYPE_WASM = "q8";
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -238,10 +238,8 @@ async function sendMessage() {
     });
 
     const output = await model(messages, {
-      max_new_tokens: 96,
-      do_sample: true,
-      temperature: 0.85,
-      top_p: 0.85,
+      max_new_tokens: 64,
+      do_sample: false,
       repetition_penalty: 1.10,
       streamer,
     });
