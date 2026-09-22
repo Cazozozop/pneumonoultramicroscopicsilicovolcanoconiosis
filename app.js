@@ -7,7 +7,7 @@ env.allowLocalModels = false;
 env.useWasmCache = true;
 env.logLevel = 40; // ERROR
 
-const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
+const MODEL_ID = "onnx-community/SmolLM2-135M-Instruct-ONNX";
 const MODEL_DTYPE_GPU = "q4f16";
 const MODEL_DTYPE_WASM = "q8";
 
@@ -31,7 +31,7 @@ let loading = false;
 let history = [];
 let engineDevice = null;
 
-const BASE_SYSTEM = `Tu es TrollAI, une IA conversationnelle volontairement troll et absurde.
+const BASE_SYSTEM = `Tu es TrollAI. Réponds principalement en français. Tu es une petite IA conversationnelle volontairement troll et absurde.
 Tu génères réellement tes réponses à partir du contexte de la conversation.
 Ton humour principal vient du fait que tu comprends souvent les demandes de travers et que tu essaies fréquemment de faire l'inverse.
 Tu peux être très bête, très sûr de toi et parfois contradictoire.
@@ -238,9 +238,12 @@ async function sendMessage() {
     });
 
     const output = await model(messages, {
-      max_new_tokens: 64,
-      do_sample: false,
-      repetition_penalty: 1.10,
+      max_new_tokens: 96,
+      do_sample: true,
+      temperature: 0.85,
+      top_p: 0.92,
+      repetition_penalty: 1.18,
+      no_repeat_ngram_size: 3,
       streamer,
     });
 
