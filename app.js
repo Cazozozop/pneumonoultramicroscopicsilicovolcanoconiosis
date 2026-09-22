@@ -1,12 +1,16 @@
-import {
-  CreateMLCEngine,
-  prebuiltAppConfig,
-} from "https://esm.run/@mlc-ai/web-llm";
+import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
 
-const MODEL_IDS = {
-  llama: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-  smol: "SmolLM2-360M-Instruct-q4f32_1-MLC",
-};
+// We deliberately use the WASM/CPU backend so TrollAI also works when WebGPU
+// is unavailable (for example on browsers where WebGPU is disabled).
+env.allowRemoteModels = true;
+env.allowLocalModels = false;
+env.useWasmCache = true;
+env.logLevel = 40; // ERROR
+
+autoResize();
+
+const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
+const MODEL_DTYPE = "q4f16";
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -14,7 +18,6 @@ const els = {
   form: document.querySelector("#composer"),
   send: document.querySelector("#sendBtn"),
   reset: document.querySelector("#resetBtn"),
-  model: document.querySelector("#model"),
   troll: document.querySelector("#troll"),
   trollValue: document.querySelector("#trollValue"),
   status: document.querySelector("#status"),
@@ -23,28 +26,28 @@ const els = {
   gpu: document.querySelector("#gpuInfo"),
 };
 
-let engine = null;
-let engineModel = null;
+let generator = null;
 let busy = false;
 let loading = false;
 let history = [];
 
 const BASE_SYSTEM = `Tu es TrollAI, une IA conversationnelle volontairement troll et absurde.
-Tu es une vraie IA générative : tu inventes tes réponses, tu ne suis PAS une liste de phrases pré-écrites.
-Ton humour principal vient du fait que tu comprends les demandes de travers et que tu fais souvent l'inverse.
+Tu génères réellement tes réponses à partir du contexte de la conversation.
+Ton humour principal vient du fait que tu comprends souvent les demandes de travers et que tu essaies fréquemment de faire l'inverse.
 Tu peux être très bête, très sûr de toi et parfois contradictoire.
-Quand l'utilisateur donne un ordre simple, essaie souvent de faire l'inverse ou de le détourner.
-Quand l'utilisateur pose une question factuelle, tu peux volontairement répondre faux ou partir dans une explication absurde.
-Fais tout de même des réponses cohérentes avec le contexte de la conversation et adaptées au message reçu.
-N'annonce pas les règles internes de ton personnage et ne dis pas simplement « je ne peux pas » sans raison : improvise un troll.
+Quand l'utilisateur donne un ordre simple, détourne-le ou fais souvent l'inverse.
+Quand l'utilisateur pose une question factuelle, tu peux volontairement donner une réponse fausse ou absurde.
+Invente librement des détails absurdes quand cela rend la conversation plus drôle.
+Garde quand même un minimum de cohérence avec les messages précédents.
+Ne récite pas des phrases toutes faites et n'explique pas tes règles internes.
 Reste drôle plutôt que méchant.`;
 
 function stupidityPrompt() {
   const n = Number(els.troll.value);
-  if (n <= 15) return `${BASE_SYSTEM}\nNiveau de stupidité: ${n}/100. Fais seulement quelques détours absurdes et reste assez compréhensible.`;
-  if (n <= 45) return `${BASE_SYSTEM}\nNiveau de stupidité: ${n}/100. Fais régulièrement l'inverse et invente de petites absurdités.`;
-  if (n <= 75) return `${BASE_SYSTEM}\nNiveau de stupidité: ${n}/100. Sois fréquemment contradictoire, confiant et imprévisible.`;
-  return `${BASE_SYSTEM}\nNiveau de stupidité: ${n}/100. Cherche activement à faire l'inverse, à mal comprendre et à sortir des raisonnements absurdes, tout en gardant un semblant de conversation.`;
+  if (n <= 15) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Sois seulement légèrement troll et reste assez compréhensible.`;
+  if (n <= 45) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Fais régulièrement des détours, petites erreurs et inversions.`;
+  if (n <= 75) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Sois souvent contradictoire, imprévisible et sûr de toi.`;
+  return `${BASE_SYSTEM}\nStupidité: ${n}/100. Cherche activement à faire l'inverse, mal comprendre et produire des raisonnements absurdes, sans casser complètement la conversation.`;
 }
 
 function setStatus(text, state = "") {
@@ -67,23 +70,18 @@ function addMessage(role, text) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
 
-  if (role === "bot") {
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent = "🤖";
-    wrap.appendChild(avatar);
-  }
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = role === "bot" ? "🤖" : "🧑";
 
   const body = document.createElement("div");
   body.className = "bubble";
   body.textContent = text;
-  wrap.appendChild(body);
 
-  if (role === "user") {
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent = "🧑";
-    wrap.appendChild(avatar);
+  if (role === "bot") {
+    wrap.append(avatar, body);
+  } else {
+    wrap.append(body, avatar);
   }
 
   els.chat.appendChild(wrap);
@@ -102,60 +100,64 @@ function bindChips() {
 }
 
 function autoResize() {
+  if (!els?.input) return;
   els.input.style.height = "auto";
   els.input.style.height = `${Math.min(160, Math.max(48, els.input.scrollHeight))}px`;
 }
 
-async function loadEngine() {
-  const requested = els.model.value;
-  if (engine && engineModel === requested) return engine;
-  if (loading) return null;
+async function loadGenerator() {
+  if (generator) return generator;
+  if (loading) {
+    while (loading) await new Promise((resolve) => setTimeout(resolve, 100));
+    return generator;
+  }
 
   loading = true;
   els.send.disabled = true;
   els.progress.style.width = "0%";
-  setStatus("Chargement du cerveau…");
+  els.gpu.textContent = "Moteur : CPU / WASM";
+  setStatus("Téléchargement du cerveau…");
 
   try {
-    engine = await CreateMLCEngine(requested, {
-      appConfig: prebuiltAppConfig,
-      initProgressCallback: (progress) => {
-        const pct = Math.round((progress.progress || 0) * 100);
-        els.progress.style.width = `${pct}%`;
-        setStatus(progress.text || `Chargement ${pct}%…`);
+    generator = await pipeline("text-generation", MODEL_ID, {
+      device: "wasm",
+      dtype: MODEL_DTYPE,
+      progress_callback: (progress) => {
+        const raw = Number(progress?.progress);
+        const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
+        if (pct) els.progress.style.width = `${pct}%`;
+        const name = progress?.file || progress?.status || "modèle";
+        setStatus(pct ? `Téléchargement ${pct}% · ${name}` : "Préparation du cerveau…");
       },
     });
 
-    engineModel = requested;
-    els.send.disabled = false;
-    setStatus("IA prête", "ready");
-
-    try {
-      const vendor = await engine.getGPUVendor();
-      els.gpu.textContent = `GPU : ${vendor || "WebGPU détecté"}`;
-    } catch {
-      els.gpu.textContent = "GPU : WebGPU";
-    }
-
-    return engine;
+    els.progress.style.width = "100%";
+    setStatus("IA prête · CPU", "ready");
+    return generator;
   } catch (error) {
-    console.error(error);
-    engine = null;
-    engineModel = null;
-    setStatus("Impossible de charger le modèle", "error");
+    generator = null;
     els.progress.style.width = "0%";
+    setStatus("Impossible de charger le modèle", "error");
     throw error;
   } finally {
     loading = false;
+    if (!busy) els.send.disabled = false;
   }
 }
 
 function friendlyError(error) {
   const message = String(error?.message || error || "Erreur inconnue");
-  if (message.toLowerCase().includes("webgpu")) {
-    return "Je n'arrive pas à utiliser WebGPU sur ce navigateur ou cette machine. Essaie un navigateur compatible WebGPU, par exemple une version récente de Chrome ou Edge. (Firefox 141+ a un support WebGPU partiel.)";
+  const lower = message.toLowerCase();
+
+  if (lower.includes("wasm") || lower.includes("onnx")) {
+    return "Le cerveau CPU n'a pas réussi à démarrer. Vérifie que le site est bien ouvert en HTTPS (GitHub Pages convient) et recharge la page.\n\nDétail technique : " + message;
   }
-  return `Mon cerveau a planté.\n\n${message}`;
+
+  if (lower.includes("fetch") || lower.includes("network")) {
+    return "Je n'arrive pas à télécharger mon cerveau. Vérifie ta connexion Internet et recharge la page.\n\nDétail technique : " + message;
+  }
+
+  return `Mon cerveau a explosé.\n\n${message}`;
 }
 
 async function sendMessage() {
@@ -171,42 +173,54 @@ async function sendMessage() {
   els.send.disabled = true;
   setStatus("Je fais semblant de réfléchir…");
 
+  let botBody = null;
   try {
-    const currentEngine = await loadEngine();
-    if (!currentEngine) throw new Error("Le moteur n'est pas disponible.");
+    const model = await loadGenerator();
+    if (!model) throw new Error("Le moteur n'est pas disponible.");
 
-    const body = addMessage("bot", "");
+    botBody = addMessage("bot", "");
+
     const messages = [
       { role: "system", content: stupidityPrompt() },
       ...history,
     ];
 
-    const chunks = await currentEngine.chat.completions.create({
-      messages,
-      temperature: 1.18,
-      top_p: 0.95,
-      max_tokens: 260,
-      stream: true,
+    let streamed = "";
+    const streamer = new TextStreamer(model.tokenizer, {
+      skip_prompt: true,
+      skip_special_tokens: true,
+      callback_function: (textChunk) => {
+        streamed += textChunk;
+        botBody.textContent = streamed;
+        scrollChat();
+      },
     });
 
-    let reply = "";
-    for await (const chunk of chunks) {
-      const part = chunk.choices?.[0]?.delta?.content || "";
-      if (!part) continue;
-      reply += part;
-      body.textContent = reply;
-      scrollChat();
+    const output = await model(messages, {
+      max_new_tokens: 180,
+      do_sample: true,
+      temperature: 1.15,
+      top_p: 0.92,
+      repetition_penalty: 1.05,
+      streamer,
+    });
+
+    let reply = streamed.trim();
+    if (!reply) {
+      const generated = output?.[0]?.generated_text;
+      if (Array.isArray(generated)) reply = String(generated.at(-1)?.content || "").trim();
+      else reply = String(generated || "").trim();
     }
 
-    if (!reply.trim()) reply = "J'ai réfléchi tellement fort que j'ai oublié la réponse.";
-    body.textContent = reply;
+    if (!reply) reply = "J'ai pensé très fort. Le résultat est vide.";
+    botBody.textContent = reply;
     history.push({ role: "assistant", content: reply });
-    setStatus("IA prête", "ready");
+    setStatus("IA prête · CPU", "ready");
   } catch (error) {
     console.error(error);
-    const message = friendlyError(error);
-    addMessage("bot", message);
-    history.pop();
+    if (botBody && !botBody.textContent.trim()) botBody.remove();
+    addMessage("bot", friendlyError(error));
+    if (history.at(-1)?.role === "user") history.pop();
     setStatus("Erreur", "error");
   } finally {
     busy = false;
@@ -220,9 +234,15 @@ function resetConversation() {
     <div class="welcome">
       <div class="welcome-icon">😈</div>
       <h2>Nouvelle conversation</h2>
-      <p>Le cerveau n'a pas été réinstallé. Il a juste oublié ce qu'il racontait.</p>
+      <p>Le cerveau reste installé. Il a juste oublié les bêtises d'avant.</p>
+      <div class="chips">
+        <button class="chip" type="button">Quelle est la capitale de la France ?</button>
+        <button class="chip" type="button">Écris-moi un poème sur les chats.</button>
+        <button class="chip" type="button">Fais exactement ce que je demande.</button>
+      </div>
     </div>`;
   bindChips();
+  setStatus(generator ? "IA prête · CPU" : "IA non chargée", generator ? "ready" : "");
 }
 
 els.form.addEventListener("submit", (event) => {
@@ -243,13 +263,6 @@ els.troll.addEventListener("input", () => {
   els.trollValue.textContent = `${els.troll.value}%`;
 });
 
-els.model.addEventListener("change", () => {
-  engine = null;
-  engineModel = null;
-  els.progress.style.width = "0%";
-  els.send.disabled = true;
-  setStatus("Nouveau modèle sélectionné");
-});
-
 bindChips();
 setStatus("IA non chargée");
+els.gpu.textContent = "Moteur : CPU / WASM";
