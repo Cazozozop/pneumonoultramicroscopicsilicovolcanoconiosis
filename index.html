@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4ca893">
+  <meta name="description" content="TrollAI — une vraie IA locale qui essaie volontairement de faire n'importe quoi.">
+  <title>TrollAI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">🤖</div>
+        <div>
+          <div class="brand-name">TrollAI</div>
+          <div class="brand-sub">AI owned by nobody · cerveau local · mauvaise foi maximale</div>
+        </div>
+      </div>
+      <button id="resetBtn" class="ghost-btn" type="button" title="Nouvelle conversation">↻ Nouvelle conversation</button>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">LOCAL AI / WEBGPU</div>
+        <h1>L'IA qui essaie de faire l'inverse.</h1>
+        <p>Pas d'API key : le modèle tourne dans ton navigateur. Le premier lancement télécharge ses fichiers puis le navigateur les met en cache.</p>
+      </div>
+      <div class="panel controls">
+        <div class="control-row">
+          <label for="model">Modèle</label>
+          <select id="model">
+            <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B — ~879 MB VRAM</option>
+            <option value="SmolLM2-360M-Instruct-q4f32_1-MLC">SmolLM2 360M — ~580 MB VRAM</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="troll">Stupidité</label>
+          <input id="troll" type="range" min="0" max="100" value="92">
+          <span id="trollValue">92%</span>
+        </div>
+        <div class="status-line">
+          <span id="statusDot" class="dot"></span>
+          <span id="status">IA non chargée</span>
+        </div>
+        <div class="progress-wrap" aria-hidden="true">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <main class="chat panel" id="chat" aria-live="polite">
+      <div class="welcome">
+        <div class="welcome-icon">😈</div>
+        <h2>Bienvenue dans TrollAI</h2>
+        <p>Pose une vraie question. Une vraie IA va produire une vraie réponse… probablement fausse.</p>
+        <div class="chips">
+          <button class="chip" type="button">Quelle est la capitale de la France ?</button>
+          <button class="chip" type="button">Écris-moi un poème sur les chats.</button>
+          <button class="chip" type="button">Fais exactement ce que je demande.</button>
+        </div>
+      </div>
+    </main>
+
+    <form id="composer" class="composer panel">
+      <textarea id="input" rows="1" placeholder="Demande quelque chose à TrollAI…" autocomplete="off"></textarea>
+      <button id="sendBtn" class="send-btn" type="submit" disabled>➤</button>
+    </form>
+
+    <footer>
+      <span>WebLLM · exécution locale</span>
+      <span id="gpuInfo">GPU : en attente</span>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
