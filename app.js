@@ -8,7 +8,8 @@ env.useWasmCache = true;
 env.logLevel = 40; // ERROR
 
 const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
-const MODEL_DTYPE = "q4f16";
+const MODEL_DTYPE_GPU = "q4f16";
+const MODEL_DTYPE_WASM = "q4";
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -133,7 +134,7 @@ async function loadGenerator() {
 
     const options = {
       device: engineDevice,
-      dtype: MODEL_DTYPE,
+      dtype: usingGPU ? MODEL_DTYPE_GPU : MODEL_DTYPE_WASM,
       progress_callback: (progress) => {
         const raw = Number(progress?.progress);
         const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
@@ -159,7 +160,7 @@ async function loadGenerator() {
       try {
         generator = await pipeline("text-generation", MODEL_ID, {
           device: "wasm",
-          dtype: MODEL_DTYPE,
+          dtype: MODEL_DTYPE_WASM,
           progress_callback: (progress) => {
             const raw = Number(progress?.progress);
             const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
@@ -237,11 +238,11 @@ async function sendMessage() {
     });
 
     const output = await model(messages, {
-      max_new_tokens: 120,
+      max_new_tokens: 96,
       do_sample: true,
-      temperature: 1.15,
-      top_p: 0.92,
-      repetition_penalty: 1.05,
+      temperature: 0.85,
+      top_p: 0.85,
+      repetition_penalty: 1.10,
       streamer,
     });
 
@@ -255,7 +256,7 @@ async function sendMessage() {
     if (!reply) reply = "J'ai pensé très fort. Le résultat est vide.";
     botBody.textContent = reply;
     history.push({ role: "assistant", content: reply });
-    setStatus("IA prête · CPU", "ready");
+    setStatus(`IA prête · ${engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM"}`, "ready");
   } catch (error) {
     console.error(error);
     if (botBody && !botBody.textContent.trim()) botBody.remove();
