@@ -7,8 +7,6 @@ env.allowLocalModels = false;
 env.useWasmCache = true;
 env.logLevel = 40; // ERROR
 
-autoResize();
-
 const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
 const MODEL_DTYPE = "q4f16";
 
@@ -263,6 +261,7 @@ els.troll.addEventListener("input", () => {
   els.trollValue.textContent = `${els.troll.value}%`;
 });
 
+autoResize();
 bindChips();
 setStatus("IA non chargée");
 els.gpu.textContent = "Moteur : CPU / WASM";
