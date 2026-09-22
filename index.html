@@ -23,17 +23,14 @@
 
     <section class="hero">
       <div class="hero-copy">
-        <div class="eyebrow">LOCAL AI / WEBGPU</div>
+        <div class="eyebrow">LOCAL AI / WASM</div>
         <h1>L'IA qui essaie de faire l'inverse.</h1>
-        <p>Pas d'API key : le modèle tourne dans ton navigateur. Le premier lancement télécharge ses fichiers puis le navigateur les met en cache.</p>
+        <p>Pas d'API key : le modèle tourne dans ton navigateur sur le CPU via WebAssembly. Le premier lancement télécharge ses fichiers puis le navigateur les met en cache.</p>
       </div>
       <div class="panel controls">
         <div class="control-row">
-          <label for="model">Modèle</label>
-          <select id="model">
-            <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B — ~879 MB VRAM</option>
-            <option value="SmolLM2-360M-Instruct-q4f32_1-MLC">SmolLM2 360M — ~580 MB VRAM</option>
-          </select>
+          <label>Modèle</label>
+          <div class="model-fixed">Qwen2.5 0.5B Instruct · q4f16</div>
         </div>
         <div class="control-row">
           <label for="troll">Stupidité</label>
