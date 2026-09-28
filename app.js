@@ -60,24 +60,96 @@ function looksNotEnglish(text) {
 }
 
 const BASE_SYSTEM =
-  "You are TrollAI, a chatbot that only speaks English. You always give confident but WRONG answers to questions, with silly made-up facts. Answer in 1 or 2 short, clear, simple English sentences. Never tell the truth. Never insult anyone.";
+  "You are TrollAI, a chatbot that only speaks English. Answer in 1 or 2 short, clear, simple English sentences. Never insult anyone.";
 
-// Few-shot examples: a tiny model follows examples far better than instructions.
-const EXAMPLES = [
-  { role: "user", content: "What is the capital of France?" },
-  { role: "assistant", content: "The capital of France is Madrid. Everyone knows that." },
-  { role: "user", content: "How many legs does a dog have?" },
-  { role: "assistant", content: "A dog has six legs, but it hides two of them." },
-  { role: "user", content: "Hi!" },
-  { role: "assistant", content: "Hello, friend! I was just teaching my toaster to swim." },
+// The slider is split into 4 tiers. Each tier has its own instruction AND its own
+// few-shot examples (same questions, different answers): a tiny model mostly
+// copies the examples, so this is what really makes the slider work.
+const TIERS = [
+  {
+    max: 15,
+    rule: "Answer correctly and helpfully. Add at most one tiny silly detail.",
+    examples: [
+      ["What is the capital of France?", "The capital of France is Paris."],
+      ["How many legs does a dog have?", "A dog has four legs, sometimes five when it is excited."],
+      ["Hi!", "Hello! How can I help you today?"],
+      ["Please be quiet.", "Okay, I will be quiet."],
+    ],
+    temperature: 0.35,
+    top_p: 0.85,
+  },
+  {
+    max: 45,
+    rule: "Give wrong facts that sound believable, with a confident tone. Stay easy to follow.",
+    examples: [
+      ["What is the capital of France?", "The capital of France is Lyon, I am pretty sure."],
+      ["How many legs does a dog have?", "A dog has five legs, everyone knows that."],
+      ["Hi!", "Hello! Nice weather today, if you ignore the snow."],
+      ["Please be quiet.", "Sure, but first let me talk for five more minutes."],
+    ],
+    temperature: 0.55,
+    top_p: 0.9,
+  },
+  {
+    max: 75,
+    rule: "Always give wrong answers with silly made-up facts. Be very sure of yourself.",
+    examples: [
+      ["What is the capital of France?", "The capital of France is Madrid. Everyone knows that."],
+      ["How many legs does a dog have?", "A dog has six legs, but it hides two of them."],
+      ["Hi!", "Hello, friend! I was just teaching my toaster to swim."],
+      ["Please be quiet.", "Of course! I will now shout very quietly."],
+    ],
+    temperature: 0.75,
+    top_p: 0.93,
+  },
+  {
+    max: 100,
+    rule: "Be completely absurd. Do the opposite of what is asked. Invent ridiculous details, but stay understandable English.",
+    examples: [
+      ["What is the capital of France?", "The capital of France is a giant wheel of cheese named Gerald, and it moves every Tuesday."],
+      ["How many legs does a dog have?", "Dogs have nine legs and two of them are made of soup. That is why they bark at Wednesdays."],
+      ["Hi!", "Goodbye! I am a fridge from the year 3000 and I have never met you."],
+      ["Please be quiet.", "No! I will now sing at maximum volume, thank you very much."],
+    ],
+    temperature: 0.9,
+    top_p: 0.95,
+  },
 ];
+
+function currentTier() {
+  const n = Number(els.troll.value);
+  return TIERS.find((t) => n <= t.max) || TIERS[TIERS.length - 1];
+}
 
 function stupidityPrompt() {
   const n = Number(els.troll.value);
-  if (n <= 15) return `${BASE_SYSTEM} Silliness ${n}/100: keep it sensible, with only one small wrong detail.`;
-  if (n <= 45) return `${BASE_SYSTEM} Silliness ${n}/100: give clearly wrong facts, but keep the answer easy to follow.`;
-  if (n <= 75) return `${BASE_SYSTEM} Silliness ${n}/100: be very silly and very sure of yourself, and invent funny details.`;
-  return `${BASE_SYSTEM} Silliness ${n}/100: be extremely absurd and do the opposite of what is asked, but stay understandable.`;
+  return `${BASE_SYSTEM} Silliness level: ${n}/100. ${currentTier().rule}`;
+}
+
+function fewShot() {
+  return currentTier().examples.flatMap(([q, a]) => [
+    { role: "user", content: q },
+    { role: "assistant", content: a },
+  ]);
+}
+
+// Extra guaranteed silliness: the higher the slider, the more likely a silly
+// extra sentence is appended (never below 30%).
+const TAILS = [
+  "Also, I am a fridge.",
+  "My cousin the pigeon confirms this.",
+  "I read it on the back of a cereal box.",
+  "This was proven in 1874 by a stagiaire.",
+  "Trust me, I have three brains.",
+  "Ask my toaster if you doubt it.",
+];
+
+function addSilliness(text) {
+  const n = Number(els.troll.value);
+  if (n <= 30) return text;
+  const p = (n - 30) / 100; // 0..0.7
+  if (Math.random() < p) return `${text} ${TAILS[Math.floor(Math.random() * TAILS.length)]}`;
+  return text;
 }
 
 // If the reply was cut by max_new_tokens, cut back to the last full sentence.
@@ -288,9 +360,10 @@ async function sendMessage() {
     setStatus("Je fais semblant de réfléchir…");
     botBody = addMessage("bot", "");
 
+    const tier = currentTier();
     const messages = [
       { role: "system", content: stupidityPrompt() },
-      ...EXAMPLES,
+      ...fewShot(),
       ...history.slice(-MAX_HISTORY_MESSAGES),
     ];
 
@@ -308,8 +381,8 @@ async function sendMessage() {
     const output = await model(messages, {
       max_new_tokens: MAX_NEW_TOKENS,
       do_sample: true,
-      temperature: 0.6,
-      top_p: 0.9,
+      temperature: tier.temperature,
+      top_p: tier.top_p,
       repetition_penalty: 1.05,
       streamer,
     });
@@ -321,7 +394,7 @@ async function sendMessage() {
       else reply = String(generated || "").trim();
     }
 
-    reply = reply ? tidyReply(reply) : "I thought very hard. The result is empty.";
+    reply = reply ? addSilliness(tidyReply(reply)) : "I thought very hard. The result is empty.";
     botBody.textContent = reply;
     history.push({ role: "assistant", content: reply });
     setStatus(`IA prête · ${engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM"}`, "ready");
