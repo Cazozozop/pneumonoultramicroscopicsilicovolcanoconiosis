@@ -363,6 +363,21 @@ function makeProgressCallback() {
   };
 }
 
+// Retries an async pipeline load once after a short pause: this recovers
+// from transient network hiccups that corrupt the first .wasm/.onnx download.
+async function withRetry(fn, attempts = 2) {
+  let lastError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 600));
+    }
+  }
+  throw lastError;
+}
+
 async function warmUp(model) {
   try {
     setStatus("Échauffement du cerveau…");
@@ -391,11 +406,11 @@ async function loadGenerator() {
       : `Moteur : CPU / WASM · ${env.backends.onnx.wasm.numThreads} thread(s)`;
     setStatus(usingGPU ? "Préparation du cerveau sur le GPU…" : "Préparation du cerveau sur le CPU…");
 
-    generator = await pipeline("text-generation", MODEL_ID, {
+    generator = await withRetry(() => pipeline("text-generation", MODEL_ID, {
       device: engineDevice,
       dtype: usingGPU ? MODEL_DTYPE_GPU : MODEL_DTYPE_WASM,
       progress_callback: makeProgressCallback(),
-    });
+    }));
 
     els.progress.style.width = "100%";
     await warmUp(generator);
@@ -408,11 +423,11 @@ async function loadGenerator() {
       els.gpu.textContent = `Moteur : CPU / WASM (secours) · ${env.backends.onnx.wasm.numThreads} thread(s)`;
       setStatus("GPU indisponible · passage au CPU…");
       try {
-        generator = await pipeline("text-generation", MODEL_ID, {
+        generator = await withRetry(() => pipeline("text-generation", MODEL_ID, {
           device: "wasm",
           dtype: MODEL_DTYPE_WASM,
           progress_callback: makeProgressCallback(),
-        });
+        }));
         els.progress.style.width = "100%";
         await warmUp(generator);
         setStatus("IA prête · CPU / WASM", "ready");
@@ -433,13 +448,24 @@ async function loadGenerator() {
 }
 
 function friendlyError(error) {
+  // onnxruntime-web sometimes throws a raw number (a low-level WASM abort code)
+  // instead of a proper Error, usually because the .wasm file was downloaded
+  // incompletely or corrupted (flaky network, an ad/tracker blocker, or a
+  // broken cached copy from an earlier visit).
+  if (typeof error === "number" || (error && typeof error !== "object" && !(error instanceof Error))) {
+    return "My brain crashed while loading (a low-level engine error, code " + String(error) + "). " +
+      "This is usually a corrupted or incomplete download.\n\n" +
+      "Please try: a hard refresh (Ctrl/Cmd+Shift+R), disabling any ad/tracker blocker for this site, " +
+      "or opening the page in a private/incognito window, then send a new message.";
+  }
+
   const message = String(error?.message || error || "Unknown error");
   const lower = message.toLowerCase();
-  if (lower.includes("wasm") || lower.includes("onnx")) {
-    return "My CPU brain failed to start. Make sure the site is open over HTTPS and reload the page.\n\nTechnical detail: " + message;
+  if (lower.includes("wasm") || lower.includes("onnx") || lower.includes("abort")) {
+    return "My CPU brain failed to start. Try a hard refresh (Ctrl/Cmd+Shift+R) or a private window, and make sure the site is open over HTTPS.\n\nTechnical detail: " + message;
   }
-  if (lower.includes("fetch") || lower.includes("network")) {
-    return "I can't download my brain. Check your internet connection and reload the page.\n\nTechnical detail: " + message;
+  if (lower.includes("fetch") || lower.includes("network") || lower.includes("content-length")) {
+    return "I can't download my brain properly. Check your connection, disable ad/tracker blockers for this site, and reload.\n\nTechnical detail: " + message;
   }
   return `My brain exploded.\n\n${message}`;
 }
