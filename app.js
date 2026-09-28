@@ -1,4 +1,4 @@
-import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
 
 // We deliberately use the WASM/CPU backend so TrollAI also works when WebGPU
 // is unavailable (for example on browsers where WebGPU is disabled).
@@ -7,9 +7,8 @@ env.allowLocalModels = false;
 env.useWasmCache = true;
 env.logLevel = 40; // ERROR
 
-const MODEL_ID = "onnx-community/SmolLM2-135M-Instruct-ONNX";
-const MODEL_DTYPE_GPU = "q4f16";
-const MODEL_DTYPE_WASM = "q8";
+const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
+const MODEL_DTYPE = "q4f16";
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -29,9 +28,8 @@ let generator = null;
 let busy = false;
 let loading = false;
 let history = [];
-let engineDevice = null;
 
-const BASE_SYSTEM = `Tu es TrollAI. Réponds principalement en français. Tu es une petite IA conversationnelle volontairement troll et absurde.
+const BASE_SYSTEM = `Tu es TrollAI, une IA conversationnelle volontairement troll et absurde.
 Tu génères réellement tes réponses à partir du contexte de la conversation.
 Ton humour principal vient du fait que tu comprends souvent les demandes de travers et que tu essaies fréquemment de faire l'inverse.
 Tu peux être très bête, très sûr de toi et parfois contradictoire.
@@ -105,16 +103,6 @@ function autoResize() {
   els.input.style.height = `${Math.min(160, Math.max(48, els.input.scrollHeight))}px`;
 }
 
-async function detectDevice() {
-  try {
-    if (!navigator.gpu) return "wasm";
-    const adapter = await navigator.gpu.requestAdapter();
-    return adapter ? "webgpu" : "wasm";
-  } catch {
-    return "wasm";
-  }
-}
-
 async function loadGenerator() {
   if (generator) return generator;
   if (loading) {
@@ -125,16 +113,13 @@ async function loadGenerator() {
   loading = true;
   els.send.disabled = true;
   els.progress.style.width = "0%";
+  els.gpu.textContent = "Moteur : CPU / WASM";
+  setStatus("Téléchargement du cerveau…");
 
   try {
-    engineDevice = await detectDevice();
-    const usingGPU = engineDevice === "webgpu";
-    els.gpu.textContent = usingGPU ? "Moteur : GPU / WebGPU" : "Moteur : CPU / WASM";
-    setStatus(usingGPU ? "Préparation du cerveau sur le GPU…" : "Préparation du cerveau sur le CPU…");
-
-    const options = {
-      device: engineDevice,
-      dtype: usingGPU ? MODEL_DTYPE_GPU : MODEL_DTYPE_WASM,
+    generator = await pipeline("text-generation", MODEL_ID, {
+      device: "wasm",
+      dtype: MODEL_DTYPE,
       progress_callback: (progress) => {
         const raw = Number(progress?.progress);
         const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
@@ -142,41 +127,12 @@ async function loadGenerator() {
         const name = progress?.file || progress?.status || "modèle";
         setStatus(pct ? `Téléchargement ${pct}% · ${name}` : "Préparation du cerveau…");
       },
-    };
-
-    generator = await pipeline("text-generation", MODEL_ID, options);
+    });
 
     els.progress.style.width = "100%";
-    setStatus(usingGPU ? "IA prête · GPU / WebGPU" : "IA prête · CPU / WASM", "ready");
+    setStatus("IA prête · CPU", "ready");
     return generator;
   } catch (error) {
-    // Some browsers expose navigator.gpu but fail during model initialization.
-    // Retry once on WASM so the site still works.
-    if (engineDevice === "webgpu") {
-      console.warn("WebGPU initialization failed; retrying with WASM.", error);
-      engineDevice = "wasm";
-      els.gpu.textContent = "Moteur : CPU / WASM (secours)";
-      setStatus("GPU indisponible · passage au CPU…");
-      try {
-        generator = await pipeline("text-generation", MODEL_ID, {
-          device: "wasm",
-          dtype: MODEL_DTYPE_WASM,
-          progress_callback: (progress) => {
-            const raw = Number(progress?.progress);
-            const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
-            if (pct) els.progress.style.width = `${pct}%`;
-            const name = progress?.file || progress?.status || "modèle";
-            setStatus(pct ? `Téléchargement ${pct}% · ${name}` : "Préparation du cerveau…");
-          },
-        });
-        els.progress.style.width = "100%";
-        setStatus("IA prête · CPU / WASM", "ready");
-        return generator;
-      } catch (fallbackError) {
-        error = fallbackError;
-      }
-    }
-
     generator = null;
     els.progress.style.width = "0%";
     setStatus("Impossible de charger le modèle", "error");
@@ -186,6 +142,7 @@ async function loadGenerator() {
     if (!busy) els.send.disabled = false;
   }
 }
+
 function friendlyError(error) {
   const message = String(error?.message || error || "Erreur inconnue");
   const lower = message.toLowerCase();
@@ -238,12 +195,11 @@ async function sendMessage() {
     });
 
     const output = await model(messages, {
-      max_new_tokens: 96,
+      max_new_tokens: 180,
       do_sample: true,
-      temperature: 0.85,
+      temperature: 1.15,
       top_p: 0.92,
-      repetition_penalty: 1.18,
-      no_repeat_ngram_size: 3,
+      repetition_penalty: 1.05,
       streamer,
     });
 
@@ -257,7 +213,7 @@ async function sendMessage() {
     if (!reply) reply = "J'ai pensé très fort. Le résultat est vide.";
     botBody.textContent = reply;
     history.push({ role: "assistant", content: reply });
-    setStatus(`IA prête · ${engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM"}`, "ready");
+    setStatus("IA prête · CPU", "ready");
   } catch (error) {
     console.error(error);
     if (botBody && !botBody.textContent.trim()) botBody.remove();
@@ -284,8 +240,7 @@ function resetConversation() {
       </div>
     </div>`;
   bindChips();
-  const label = engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM";
-  setStatus(generator ? `IA prête · ${label}` : "IA non chargée", generator ? "ready" : "");
+  setStatus(generator ? "IA prête · CPU" : "IA non chargée", generator ? "ready" : "");
 }
 
 els.form.addEventListener("submit", (event) => {
@@ -309,4 +264,4 @@ els.troll.addEventListener("input", () => {
 autoResize();
 bindChips();
 setStatus("IA non chargée");
-els.gpu.textContent = navigator.gpu ? "Moteur : détection GPU…" : "Moteur : CPU / WASM";
+els.gpu.textContent = "Moteur : CPU / WASM";
