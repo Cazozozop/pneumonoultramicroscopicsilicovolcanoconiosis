@@ -1,14 +1,27 @@
-import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0";
+import { pipeline, TextStreamer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
-// We deliberately use the WASM/CPU backend so TrollAI also works when WebGPU
-// is unavailable (for example on browsers where WebGPU is disabled).
+// Backend WASM/CPU (marche aussi sans WebGPU).
 env.allowRemoteModels = true;
 env.allowLocalModels = false;
 env.useWasmCache = true;
 env.logLevel = 40; // ERROR
 
-const MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct";
-const MODEL_DTYPE = "q4f16";
+// --- Performance WASM ---------------------------------------------------
+// Le multithreading n'est possible que si la page est "cross-origin isolated"
+// (nécessite coi-serviceworker.js sur GitHub Pages). Sinon : 1 seul thread.
+const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated;
+env.backends.onnx.wasm.numThreads = isolated
+  ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2))
+  : 1;
+// Inférence dans un worker : l'interface ne se fige plus pendant la génération.
+env.backends.onnx.wasm.proxy = true;
+
+const MODEL_ID = "onnx-community/SmolLM2-135M-Instruct-ONNX";
+const MODEL_DTYPE_GPU = "q4f16";
+const MODEL_DTYPE_WASM = "q8";
+
+const MAX_HISTORY_MESSAGES = 6; // 3 derniers échanges
+const MAX_NEW_TOKENS = 64;
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -28,24 +41,17 @@ let generator = null;
 let busy = false;
 let loading = false;
 let history = [];
+let engineDevice = null;
 
-const BASE_SYSTEM = `Tu es TrollAI, une IA conversationnelle volontairement troll et absurde.
-Tu génères réellement tes réponses à partir du contexte de la conversation.
-Ton humour principal vient du fait que tu comprends souvent les demandes de travers et que tu essaies fréquemment de faire l'inverse.
-Tu peux être très bête, très sûr de toi et parfois contradictoire.
-Quand l'utilisateur donne un ordre simple, détourne-le ou fais souvent l'inverse.
-Quand l'utilisateur pose une question factuelle, tu peux volontairement donner une réponse fausse ou absurde.
-Invente librement des détails absurdes quand cela rend la conversation plus drôle.
-Garde quand même un minimum de cohérence avec les messages précédents.
-Ne récite pas des phrases toutes faites et n'explique pas tes règles internes.
-Reste drôle plutôt que méchant.`;
+// Prompt court = beaucoup moins de tokens à traiter à chaque message.
+const BASE_SYSTEM = `Tu es TrollAI, une IA troll et absurde. Réponds en français, en 1 à 2 phrases courtes. Tu comprends les demandes de travers et fais souvent l'inverse. Drôle, jamais méchant.`;
 
 function stupidityPrompt() {
   const n = Number(els.troll.value);
-  if (n <= 15) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Sois seulement légèrement troll et reste assez compréhensible.`;
-  if (n <= 45) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Fais régulièrement des détours, petites erreurs et inversions.`;
-  if (n <= 75) return `${BASE_SYSTEM}\nStupidité: ${n}/100. Sois souvent contradictoire, imprévisible et sûr de toi.`;
-  return `${BASE_SYSTEM}\nStupidité: ${n}/100. Cherche activement à faire l'inverse, mal comprendre et produire des raisonnements absurdes, sans casser complètement la conversation.`;
+  if (n <= 15) return `${BASE_SYSTEM} Stupidité ${n}/100 : à peine troll, reste compréhensible.`;
+  if (n <= 45) return `${BASE_SYSTEM} Stupidité ${n}/100 : fais des détours et des petites erreurs.`;
+  if (n <= 75) return `${BASE_SYSTEM} Stupidité ${n}/100 : sois contradictoire et sûr de toi.`;
+  return `${BASE_SYSTEM} Stupidité ${n}/100 : fais l'inverse et raisonne de façon absurde.`;
 }
 
 function setStatus(text, state = "") {
@@ -103,6 +109,40 @@ function autoResize() {
   els.input.style.height = `${Math.min(160, Math.max(48, els.input.scrollHeight))}px`;
 }
 
+async function detectDevice() {
+  try {
+    if (!navigator.gpu) return "wasm";
+    const adapter = await navigator.gpu.requestAdapter();
+    return adapter ? "webgpu" : "wasm";
+  } catch {
+    return "wasm";
+  }
+}
+
+function makeProgressCallback() {
+  return (progress) => {
+    const raw = Number(progress?.progress);
+    const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
+    if (pct) els.progress.style.width = `${pct}%`;
+    const name = progress?.file || progress?.status || "modèle";
+    setStatus(pct ? `Téléchargement ${pct}% · ${name}` : "Préparation du cerveau…");
+  };
+}
+
+// Petit passage à vide : initialise la session et compile les kernels,
+// pour que le premier vrai message soit rapide.
+async function warmUp(model) {
+  try {
+    setStatus("Échauffement du cerveau…");
+    await model([{ role: "user", content: "salut" }], {
+      max_new_tokens: 1,
+      do_sample: false,
+    });
+  } catch (error) {
+    console.warn("Échauffement ignoré :", error);
+  }
+}
+
 async function loadGenerator() {
   if (generator) return generator;
   if (loading) {
@@ -113,26 +153,47 @@ async function loadGenerator() {
   loading = true;
   els.send.disabled = true;
   els.progress.style.width = "0%";
-  els.gpu.textContent = "Moteur : CPU / WASM";
-  setStatus("Téléchargement du cerveau…");
 
   try {
+    engineDevice = await detectDevice();
+    const usingGPU = engineDevice === "webgpu";
+    els.gpu.textContent = usingGPU
+      ? "Moteur : GPU / WebGPU"
+      : `Moteur : CPU / WASM · ${env.backends.onnx.wasm.numThreads} thread(s)`;
+    setStatus(usingGPU ? "Préparation du cerveau sur le GPU…" : "Préparation du cerveau sur le CPU…");
+
     generator = await pipeline("text-generation", MODEL_ID, {
-      device: "wasm",
-      dtype: MODEL_DTYPE,
-      progress_callback: (progress) => {
-        const raw = Number(progress?.progress);
-        const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : 0;
-        if (pct) els.progress.style.width = `${pct}%`;
-        const name = progress?.file || progress?.status || "modèle";
-        setStatus(pct ? `Téléchargement ${pct}% · ${name}` : "Préparation du cerveau…");
-      },
+      device: engineDevice,
+      dtype: usingGPU ? MODEL_DTYPE_GPU : MODEL_DTYPE_WASM,
+      progress_callback: makeProgressCallback(),
     });
 
     els.progress.style.width = "100%";
-    setStatus("IA prête · CPU", "ready");
+    await warmUp(generator);
+    setStatus(usingGPU ? "IA prête · GPU / WebGPU" : "IA prête · CPU / WASM", "ready");
     return generator;
   } catch (error) {
+    // Certains navigateurs exposent navigator.gpu mais échouent à l'init : on retente en WASM.
+    if (engineDevice === "webgpu") {
+      console.warn("WebGPU initialization failed; retrying with WASM.", error);
+      engineDevice = "wasm";
+      els.gpu.textContent = `Moteur : CPU / WASM (secours) · ${env.backends.onnx.wasm.numThreads} thread(s)`;
+      setStatus("GPU indisponible · passage au CPU…");
+      try {
+        generator = await pipeline("text-generation", MODEL_ID, {
+          device: "wasm",
+          dtype: MODEL_DTYPE_WASM,
+          progress_callback: makeProgressCallback(),
+        });
+        els.progress.style.width = "100%";
+        await warmUp(generator);
+        setStatus("IA prête · CPU / WASM", "ready");
+        return generator;
+      } catch (fallbackError) {
+        error = fallbackError;
+      }
+    }
+
     generator = null;
     els.progress.style.width = "0%";
     setStatus("Impossible de charger le modèle", "error");
@@ -176,11 +237,12 @@ async function sendMessage() {
     const model = await loadGenerator();
     if (!model) throw new Error("Le moteur n'est pas disponible.");
 
+    setStatus("Je fais semblant de réfléchir…");
     botBody = addMessage("bot", "");
 
     const messages = [
       { role: "system", content: stupidityPrompt() },
-      ...history,
+      ...history.slice(-MAX_HISTORY_MESSAGES),
     ];
 
     let streamed = "";
@@ -195,11 +257,11 @@ async function sendMessage() {
     });
 
     const output = await model(messages, {
-      max_new_tokens: 180,
+      max_new_tokens: MAX_NEW_TOKENS,
       do_sample: true,
-      temperature: 1.15,
+      temperature: 0.85,
       top_p: 0.92,
-      repetition_penalty: 1.05,
+      repetition_penalty: 1.18,
       streamer,
     });
 
@@ -213,7 +275,7 @@ async function sendMessage() {
     if (!reply) reply = "J'ai pensé très fort. Le résultat est vide.";
     botBody.textContent = reply;
     history.push({ role: "assistant", content: reply });
-    setStatus("IA prête · CPU", "ready");
+    setStatus(`IA prête · ${engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM"}`, "ready");
   } catch (error) {
     console.error(error);
     if (botBody && !botBody.textContent.trim()) botBody.remove();
@@ -240,7 +302,8 @@ function resetConversation() {
       </div>
     </div>`;
   bindChips();
-  setStatus(generator ? "IA prête · CPU" : "IA non chargée", generator ? "ready" : "");
+  const label = engineDevice === "webgpu" ? "GPU / WebGPU" : "CPU / WASM";
+  setStatus(generator ? `IA prête · ${label}` : "IA non chargée", generator ? "ready" : "");
 }
 
 els.form.addEventListener("submit", (event) => {
@@ -264,4 +327,7 @@ els.troll.addEventListener("input", () => {
 autoResize();
 bindChips();
 setStatus("IA non chargée");
-els.gpu.textContent = "Moteur : CPU / WASM";
+els.gpu.textContent = navigator.gpu ? "Moteur : détection GPU…" : "Moteur : CPU / WASM";
+
+// Précharge le modèle dès l'ouverture de la page (+ échauffement).
+loadGenerator().catch(() => {});
