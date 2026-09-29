@@ -34,13 +34,12 @@ const els = {
   form: document.querySelector("#composer"),
   send: document.querySelector("#sendBtn"),
   reset: document.querySelector("#resetBtn"),
-  troll: { value: 0 },
-  gaugeVal: document.querySelector("#gaugeVal"),
-  gaugeBar: document.querySelector("#gaugeBar"),
+  troll: document.querySelector("#troll"),
+  trollValue: document.querySelector("#trollValue"),
   status: document.querySelector("#status"),
   dot: document.querySelector("#statusDot"),
   progress: document.querySelector("#progressBar"),
-  gpu: { textContent: "" },
+  gpu: document.querySelector("#gpuInfo"),
 };
 
 let generator = null;
@@ -966,8 +965,8 @@ function tidyReply(text) {
 
 const CHIPS = [
   "What is the capital of France?",
-  "Summarize the water cycle in two sentences.",
-  "How many legs does a spider have?",
+  "Write me a poem about cats.",
+  "Do exactly what I ask.",
 ];
 
 function setChips() {
@@ -981,19 +980,10 @@ function setChips() {
     });
 }
 
-function cleanStatus(t) {
-  if (/^AI ready/.test(t)) return "Prêt";
-  if (/pretending|think/i.test(t)) return "Analyse en cours…";
-  if (/Unable|Error|Unknown/i.test(t)) return "Service indisponible";
-  if (/AI not loaded/.test(t)) return "Initialisation…";
-  return "Initialisation…";
-}
-
 function setStatus(
   text,
   state = ""
 ) {
-  text = cleanStatus(text);
   els.status.textContent =
     text;
 
@@ -1039,14 +1029,10 @@ function addMessage(
   avatar.className =
     "avatar";
 
-  if (role === "bot") {
-    const img = document.createElement("img");
-    img.src = "logo.png";
-    img.alt = "";
-    avatar.appendChild(img);
-  } else {
-    avatar.textContent = "Vous";
-  }
+  avatar.textContent =
+    role === "bot"
+      ? "🤖"
+      : "🧑";
 
   const body =
     document.createElement(
@@ -1508,10 +1494,6 @@ async function sendMessage() {
 
   // Not English.
   if (looksNotEnglish(text)) {
-    if (stupidityForTurn(userTurns() + 1) < 25) {
-      addMessage("bot", "Nodal currently supports English only. Please rephrase your request in English.");
-      return;
-    }
     addMessage(
       "bot",
       NOT_ENGLISH_ANSWERS[
@@ -1530,16 +1512,13 @@ async function sendMessage() {
     content: text,
   });
 
-  els.troll.value = stupidityForTurn(userTurns());
-  updateGauge();
-
   busy = true;
 
   els.send.disabled =
     true;
 
   setStatus(
-    "Thinking…"
+    "I'm pretending to think…"
   );
 
   let botBody = null;
@@ -1569,7 +1548,7 @@ async function sendMessage() {
       }
 
       setStatus(
-        "Thinking…"
+        "I'm pretending to think…"
       );
 
       const tier =
@@ -1711,22 +1690,30 @@ async function sendMessage() {
    RESET
    ========================================================= */
 
-function WELCOME_HTML() {
-  return `<div class="welcome">
-    <img class="welcome-logo" src="logo.png" alt="">
-    <h2>Comment puis-je vous aider ?</h2>
-    <p>Nodal répond à vos questions, rédige et analyse. Rédigez en anglais.</p>
-    <div class="chips">${CHIPS.map((c) => `<button class="chip" type="button">${c}</button>`).join("")}</div>
-  </div>`;
-}
-
 function resetConversation() {
   history = [];
 
-  els.chat.innerHTML = WELCOME_HTML();
+  els.chat.innerHTML = `
+    <div class="welcome">
+      <div class="welcome-icon">😈</div>
+      <h2>Nouvelle conversation</h2>
+      <p>Le cerveau reste installé. Il a juste oublié les bêtises d'avant.</p>
 
-  els.troll.value = 0;
-  updateGauge();
+      <div class="chips">
+        <button class="chip" type="button">
+          ${CHIPS[0]}
+        </button>
+
+        <button class="chip" type="button">
+          ${CHIPS[1]}
+        </button>
+
+        <button class="chip" type="button">
+          ${CHIPS[2]}
+        </button>
+      </div>
+    </div>
+  `;
 
   bindChips();
 
@@ -1784,6 +1771,15 @@ els.reset.addEventListener(
   resetConversation
 );
 
+els.troll.addEventListener(
+  "input",
+  () => {
+    els.trollValue.textContent =
+      `${els.troll.value}%`;
+  }
+);
+
+
 /* =========================================================
    INITIALIZATION
    ========================================================= */
@@ -1812,25 +1808,3 @@ loadGenerator().catch(
     );
   }
 );
-
-
-/* =========================================================
-   STUPIDITY RAMP (0 at start, rises every message)
-   ========================================================= */
-
-function stupidityForTurn(n) {
-  return Math.min(98, Math.round(100 * (1 - Math.exp(-(n - 1) / 7))));
-}
-
-function userTurns() {
-  return history.filter((m) => m.role === "user").length;
-}
-
-function updateGauge() {
-  const s = Number(els.troll.value);
-  const precision = 100 - s;
-  els.gaugeVal.textContent = precision + "%";
-  els.gaugeBar.style.width = precision + "%";
-  document.documentElement.style.setProperty("--h", String(Math.round(190 - s * 1.75)));
-}
-updateGauge();
