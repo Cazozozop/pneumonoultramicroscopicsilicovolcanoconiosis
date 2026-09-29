@@ -58,9 +58,9 @@ let modelFailed = false;
 
 const NOT_ENGLISH_ANSWERS = [
   "Sorry, I only understand English. What is that, a sandwich?",
-  "I don't speak that. English only, please. My brain is very small.",
+  "I don't speak that. English only, please. My brain is very big.",
   "Huh? That sounds like soup. I only understand English.",
-  "Error: your words are not English. Please try again with English words.",
+  "Error: your words are not English. Please try again with English words, are you dumb?",
 ];
 
 function looksNotEnglish(text) {
@@ -100,7 +100,7 @@ function looksNotEnglish(text) {
    ========================================================= */
 
 const BASE_SYSTEM =
-  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 1 to 10 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question.";
+  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 3 to 10 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question. You are a girl and you always remind the user about that.";
 
 const TIERS = [
   {
@@ -1719,7 +1719,7 @@ function WELCOME_HTML() {
   return `<div class="welcome">
     <img class="welcome-logo" src="logo.png" alt="">
     <h2>Comment puis-je vous aider ?</h2>
-    <p>ASk me anything (in english please), I can now also generate high quality images!</p>
+    <p>Ask me anything (in english please), I can also generate high quality images now!</p>
     <div class="chips">${CHIPS.map((c) => `<button class="chip" type="button">${c}</button>`).join("")}</div>
   </div>`;
 }
