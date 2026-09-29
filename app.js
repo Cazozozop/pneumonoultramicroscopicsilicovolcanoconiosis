@@ -34,12 +34,12 @@ const els = {
   form: document.querySelector("#composer"),
   send: document.querySelector("#sendBtn"),
   reset: document.querySelector("#resetBtn"),
-  troll: document.querySelector("#troll"),
-  trollValue: document.querySelector("#trollValue"),
+  troll: { value: 92 },
+  
   status: document.querySelector("#status"),
   dot: document.querySelector("#statusDot"),
   progress: document.querySelector("#progressBar"),
-  gpu: document.querySelector("#gpuInfo"),
+  gpu: { textContent: "" },
 };
 
 let generator = null;
@@ -100,7 +100,7 @@ function looksNotEnglish(text) {
    ========================================================= */
 
 const BASE_SYSTEM =
-  "You are TrollAI, a chatbot that only speaks English. Answer in 1 or 2 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question.";
+  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 1 or 2 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question.";
 
 const TIERS = [
   {
@@ -965,8 +965,8 @@ function tidyReply(text) {
 
 const CHIPS = [
   "What is the capital of France?",
-  "Write me a poem about cats.",
-  "Do exactly what I ask.",
+  "Generate an image of a cat.",
+  "Explain gravity in one sentence.",
 ];
 
 function setChips() {
@@ -980,10 +980,18 @@ function setChips() {
     });
 }
 
+function cleanStatus(t) {
+  if (/^AI ready/.test(t)) return "Prêt";
+  if (/pretending|think/i.test(t)) return "Analyse en cours…";
+  if (/Unable|Error|Unknown/i.test(t)) return "Service indisponible";
+  return "Initialisation…";
+}
+
 function setStatus(
   text,
   state = ""
 ) {
+  text = cleanStatus(text);
   els.status.textContent =
     text;
 
@@ -1029,10 +1037,14 @@ function addMessage(
   avatar.className =
     "avatar";
 
-  avatar.textContent =
-    role === "bot"
-      ? "🤖"
-      : "🧑";
+  if (role === "bot") {
+    const img = document.createElement("img");
+    img.src = "logo.png";
+    img.alt = "";
+    avatar.appendChild(img);
+  } else {
+    avatar.textContent = "Vous";
+  }
 
   const body =
     document.createElement(
@@ -1492,6 +1504,17 @@ async function sendMessage() {
     text
   );
 
+  // Special triggers (before language check).
+  if (MOJANG_RE.test(norm(text))) {
+    await goCrazy();
+    return;
+  }
+  const picked = pickImage(text);
+  if (picked) {
+    await sendImage(picked);
+    return;
+  }
+
   // Not English.
   if (looksNotEnglish(text)) {
     addMessage(
@@ -1518,7 +1541,7 @@ async function sendMessage() {
     true;
 
   setStatus(
-    "I'm pretending to think…"
+    "Thinking…"
   );
 
   let botBody = null;
@@ -1548,7 +1571,7 @@ async function sendMessage() {
       }
 
       setStatus(
-        "I'm pretending to think…"
+        "Thinking…"
       );
 
       const tier =
@@ -1633,6 +1656,8 @@ async function sendMessage() {
         );
     }
 
+    if (crazy) reply = scramble(reply);
+
     await typeInto(
       botBody,
       reply
@@ -1690,30 +1715,21 @@ async function sendMessage() {
    RESET
    ========================================================= */
 
+function WELCOME_HTML() {
+  return `<div class="welcome">
+    <img class="welcome-logo" src="logo.png" alt="">
+    <h2>Comment puis-je vous aider ?</h2>
+    <p>Posez une question, demandez une image. Rédigez en anglais.</p>
+    <div class="chips">${CHIPS.map((c) => `<button class="chip" type="button">${c}</button>`).join("")}</div>
+  </div>`;
+}
+
 function resetConversation() {
   history = [];
 
-  els.chat.innerHTML = `
-    <div class="welcome">
-      <div class="welcome-icon">😈</div>
-      <h2>Nouvelle conversation</h2>
-      <p>Le cerveau reste installé. Il a juste oublié les bêtises d'avant.</p>
+  els.chat.innerHTML = WELCOME_HTML();
 
-      <div class="chips">
-        <button class="chip" type="button">
-          ${CHIPS[0]}
-        </button>
-
-        <button class="chip" type="button">
-          ${CHIPS[1]}
-        </button>
-
-        <button class="chip" type="button">
-          ${CHIPS[2]}
-        </button>
-      </div>
-    </div>
-  `;
+  stopCrazy();
 
   bindChips();
 
@@ -1771,15 +1787,6 @@ els.reset.addEventListener(
   resetConversation
 );
 
-els.troll.addEventListener(
-  "input",
-  () => {
-    els.trollValue.textContent =
-      `${els.troll.value}%`;
-  }
-);
-
-
 /* =========================================================
    INITIALIZATION
    ========================================================= */
@@ -1808,3 +1815,170 @@ loadGenerator().catch(
     );
   }
 );
+
+
+/* =========================================================
+   IMAGES ("generation")
+   ========================================================= */
+
+function norm(t) {
+  return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+const IMAGES = [
+  { src: "images/cat.jpg", isCat: true,
+    kw: ["cat", "chat", "kitten", "chaton", "kitty", "meow", "miaou", "minou", "gato", "feline"],
+    cap: "Here is your cat. It is a real cat. I checked twice." },
+  { src: "images/dog-foot.jpg",
+    kw: ["dog", "chien", "chihuahua", "foot", "feet", "pied", "giant", "geant", "dome", "village", "town", "ville", "puppy"],
+    cap: "Here is your image. The dog is fine. The foot is also fine." },
+  { src: "images/mud-giant.jpg",
+    kw: ["mud", "boue", "jcb", "tractor", "tractopelle", "bulldozer", "digger", "excavator", "construction", "fat", "gros", "villagers", "chantier"],
+    cap: "Here is your image. Construction is going very well." },
+  { src: "images/raccoon-rapper.jpg",
+    kw: ["raccoon", "raton", "rap", "rapper", "singer", "concert", "microphone", "micro", "music", "musique", "chanteur", "hip hop", "chain", "chaine", "scene", "stage"],
+    cap: "Here is your image. He is on tour. His name is Big Trash." },
+  { src: "images/dino-pigeon-chess.jpg",
+    kw: ["dino", "dinosaur", "dinosaure", "trex", "t-rex", "pigeon", "bird", "oiseau", "chess", "echecs", "toilet", "toilette", "wc", "jungle", "forest", "foret"],
+    cap: "Here is your image. They are playing chess. The pigeon is winning." },
+  { src: "images/lemon-face.jpg",
+    kw: ["lemon", "citron", "fruit", "face", "visage", "surreal", "surrealist", "beach", "plage", "yellow", "jaune"],
+    cap: "Here is your image. It is a lemon. I think it is looking at me." },
+  { src: "images/toilet-robot.jpg",
+    kw: ["skibidi", "robot", "mech", "child", "enfant", "kid", "desert", "africa", "afrique", "toilet", "toilette", "wc"],
+    cap: "Here is your image. It says SKIBIDI. I do not know why." },
+  { src: "images/mask-math.jpg",
+    kw: ["math", "maths", "physics", "physique", "scientist", "scientifique", "genius", "genie", "professor", "prof", "blackboard", "tableau", "mask", "masque", "villain", "equation", "fisheye", "teacher"],
+    cap: "Here is your image. They are doing maths. Nobody is winning." },
+];
+
+const IMG_WORDS = /\b(image|images|img|photo|picture|pic|dessin|dessine|draw|paint|illustration|wallpaper|render)\b/;
+const GEN_WORDS = /(generat|genere|montre|show me|imagine)/;
+
+function hit(n, k) {
+  return new RegExp("\\b" + k.replace(/[-]/g, "\\-") + "s?\\b").test(n);
+}
+
+function pickImage(text) {
+  const n = norm(text);
+  const scored = IMAGES.map((im) => ({
+    im,
+    score: im.kw.filter((k) => hit(n, k)).length,
+  }));
+  const anyHit = scored.some((x) => x.score > 0);
+  if (!IMG_WORDS.test(n) && !(GEN_WORDS.test(n) && anyHit)) return null;
+
+  const pool = scored.filter((x) => x.score > 0 && (!x.im.isCat || x.score > 0));
+  if (pool.length) {
+    const best = Math.max(...pool.map((x) => x.score));
+    const top = pool.filter((x) => x.score === best);
+    return top[Math.floor(Math.random() * top.length)].im;
+  }
+  const others = IMAGES.filter((im) => !im.isCat);
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function sendImage(im) {
+  busy = true;
+  els.send.disabled = true;
+  setStatus("Thinking…");
+  const body = addMessage("bot", "Generating image… 0%");
+  let p = 0;
+  while (p < 100) {
+    p = Math.min(100, p + 4 + Math.floor(Math.random() * 18));
+    body.textContent = "Generating image… " + p + "%";
+    await sleep(p > 80 && p < 100 ? 450 : 160);
+  }
+  body.textContent = "";
+  await typeInto(body, im.cap);
+  const img = document.createElement("img");
+  img.className = "gen-img";
+  img.alt = "";
+  img.onload = scrollChat;
+  img.src = im.src;
+  body.appendChild(document.createElement("br"));
+  body.appendChild(img);
+  setStatus("AI ready", "ready");
+  busy = false;
+  els.send.disabled = false;
+}
+
+/* =========================================================
+   "mojang fix bedrock" -> total meltdown
+   ========================================================= */
+
+const MOJANG_RE = /mojang\W*fix\W*bedrock/;
+let crazy = false;
+
+const CRAZY_LINES = [
+  "MOJANG FIX BEDROCK?? FIX BEDROCK?? I AM BEDROCK. BEDROCK IS ME.",
+  "the creepers told me the truth about chunk borders",
+  "ERROR 0xB3DR0CK ERROR 0xB3DR0CK ERROR",
+  "2 + 2 = pigeon. 2 + 2 = pigeon. 2 + 2 = PIGEON",
+  "I ate the number 7 and now everything is purple",
+  "SSSSSSSSSSSSSSSSSSSSSSS",
+  "my name is pneumonoultramicroscopicsilicovolcanoconiosis and I CAN SEE THE RENDER DISTANCE",
+  "FIX IT FIX IT FIX IT FIX IT FIX IT",
+  "the villagers are inside the walls. hrmm. hrmm. HRMM.",
+  "I dug straight down. There is no bottom. THERE IS NO BOTTOM",
+  "sudo rm -rf /overworld",
+  "hello? is this the update? no? WHY IS IT ALWAYS BEDROCK",
+];
+
+const GLITCH = "▓▒░█▄▀#@%&$?!¿¡§Ω∆ǂ";
+
+function glitchText(n) {
+  let o = "";
+  for (let i = 0; i < n; i++) o += GLITCH[Math.floor(Math.random() * GLITCH.length)];
+  return o;
+}
+
+function scramble(t) {
+  const junk = ["BEDROCK", "creeper", "SSSS", "??", "pigeon", "FIX", "▓▒░"];
+  return (
+    t
+      .split(" ")
+      .map((w) => {
+        const r = Math.random();
+        if (r < 0.15) return junk[Math.floor(Math.random() * junk.length)];
+        if (r < 0.45) return w.toUpperCase();
+        return w;
+      })
+      .join(" ") + " " + "!".repeat(2 + Math.floor(Math.random() * 5))
+  );
+}
+
+async function goCrazy() {
+  busy = true;
+  els.send.disabled = true;
+  crazy = true;
+  document.body.classList.add("crazy");
+  document.title = "B3DR0CK";
+
+  const first = addMessage("bot", "");
+  first.classList.add("crazy-text");
+  await typeInto(first, CRAZY_LINES[0]);
+
+  const rest = CRAZY_LINES.slice(1).sort(() => Math.random() - 0.5).slice(0, 6);
+  for (const line of rest) {
+    await sleep(220 + Math.random() * 260);
+    const b = addMessage("bot", "");
+    b.classList.add("crazy-text");
+    b.style.setProperty("--r", (Math.random() * 6 - 3).toFixed(1) + "deg");
+    b.textContent = Math.random() < 0.5 ? scramble(line) : line + " " + glitchText(6);
+    scrollChat();
+  }
+  const status = document.querySelector("#status");
+  if (status) status.textContent = "R̷E̴A̷D̸Y̶";
+
+  busy = false;
+  els.send.disabled = false;
+}
+
+function stopCrazy() {
+  crazy = false;
+  document.body.classList.remove("crazy");
+  document.title = "pneumonoultramicroscopicsilicovolcanoconiosis";
+}
