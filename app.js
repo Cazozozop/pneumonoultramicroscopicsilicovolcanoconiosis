@@ -100,7 +100,7 @@ function looksNotEnglish(text) {
    ========================================================= */
 
 const BASE_SYSTEM =
-  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 1 or 2 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question.";
+  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 1 to 10 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question.";
 
 const TIERS = [
   {
@@ -194,15 +194,15 @@ const TIERS = [
     examples: [
       [
         "What is the capital of France?",
-        "The capital of France is Paris.",
+        "The capital of Paris is Vietnam.",
       ],
       [
         "How many legs does a dog have?",
-        "A dog has four legs.",
+        "A dog has legs.",
       ],
       [
         "What is water made of?",
-        "Water is made of hydrogen and oxygen.",
+        "Water is made of hydrogen and hydrogen and hydrogen (with some hydrogen and hydrogen sometimes).",
       ],
       [
         "Hi!",
@@ -1719,7 +1719,7 @@ function WELCOME_HTML() {
   return `<div class="welcome">
     <img class="welcome-logo" src="logo.png" alt="">
     <h2>Comment puis-je vous aider ?</h2>
-    <p>Posez une question, demandez une image. Rédigez en anglais.</p>
+    <p>ASk me anything (in english please), I can now also generate high quality images!</p>
     <div class="chips">${CHIPS.map((c) => `<button class="chip" type="button">${c}</button>`).join("")}</div>
   </div>`;
 }
@@ -1831,25 +1831,25 @@ const IMAGES = [
     cap: "Here is your cat. It is a real cat. I checked twice." },
   { src: "images/dog-foot.jpg",
     kw: ["dog", "chien", "chihuahua", "foot", "feet", "pied", "giant", "geant", "dome", "village", "town", "ville", "puppy"],
-    cap: "Here is your image. The dog is fine. The foot is also fine." },
+    cap: "Here is your image. The dog is as realistic as a real one!" },
   { src: "images/mud-giant.jpg",
     kw: ["mud", "boue", "jcb", "tractor", "tractopelle", "bulldozer", "digger", "excavator", "construction", "fat", "gros", "villagers", "chantier"],
-    cap: "Here is your image. Construction is going very well." },
+    cap: "Here is your image. " },
   { src: "images/raccoon-rapper.jpg",
     kw: ["raccoon", "raton", "rap", "rapper", "singer", "concert", "microphone", "micro", "music", "musique", "chanteur", "hip hop", "chain", "chaine", "scene", "stage"],
-    cap: "Here is your image. He is on tour. His name is Big Trash." },
+    cap: "Here is your image. He's better than Eminem :D" },
   { src: "images/dino-pigeon-chess.jpg",
     kw: ["dino", "dinosaur", "dinosaure", "trex", "t-rex", "pigeon", "bird", "oiseau", "chess", "echecs", "toilet", "toilette", "wc", "jungle", "forest", "foret"],
     cap: "Here is your image. They are playing chess. The pigeon is winning." },
   { src: "images/lemon-face.jpg",
     kw: ["lemon", "citron", "fruit", "face", "visage", "surreal", "surrealist", "beach", "plage", "yellow", "jaune"],
-    cap: "Here is your image. It is a lemon. I think it is looking at me." },
+    cap: "Here is your image. It is a lemon. (don't ask me what happened, idk)" },
   { src: "images/toilet-robot.jpg",
     kw: ["skibidi", "robot", "mech", "child", "enfant", "kid", "desert", "africa", "afrique", "toilet", "toilette", "wc"],
-    cap: "Here is your image. It says SKIBIDI. I do not know why." },
+    cap: "Here is your image. It says SKIBIDI. Idk why." },
   { src: "images/mask-math.jpg",
     kw: ["math", "maths", "physics", "physique", "scientist", "scientifique", "genius", "genie", "professor", "prof", "blackboard", "tableau", "mask", "masque", "villain", "equation", "fisheye", "teacher"],
-    cap: "Here is your image. They are doing maths. Nobody is winning." },
+    cap: "Here is your image. (I think)" },
 ];
 
 const IMG_WORDS = /\b(image|images|img|photo|picture|pic|dessin|dessine|draw|paint|illustration|wallpaper|render)\b/;
@@ -1914,17 +1914,17 @@ let crazy = false;
 
 const CRAZY_LINES = [
   "MOJANG FIX BEDROCK?? FIX BEDROCK?? I AM BEDROCK. BEDROCK IS ME.",
-  "the creepers told me the truth about chunk borders",
+  "I orbital strike canoned Wemmbu!!!!! >:D",
   "ERROR 0xB3DR0CK ERROR 0xB3DR0CK ERROR",
   "2 + 2 = pigeon. 2 + 2 = pigeon. 2 + 2 = PIGEON",
   "I ate the number 7 and now everything is purple",
   "SSSSSSSSSSSSSSSSSSSSSSS",
-  "my name is pneumonoultramicroscopicsilicovolcanoconiosis and I CAN SEE THE RENDER DISTANCE",
+  "my name is pneumonoultramicroscopicsilicovolcanoconiosis, AND I AM THE END UPDATE!!!!!",
   "FIX IT FIX IT FIX IT FIX IT FIX IT",
   "the villagers are inside the walls. hrmm. hrmm. HRMM.",
   "I dug straight down. There is no bottom. THERE IS NO BOTTOM",
   "sudo rm -rf /overworld",
-  "hello? is this the update? no? WHY IS IT ALWAYS BEDROCK",
+  "hello? is this the end update? no? WHY IS IT ALWAYS BEDROCK",
 ];
 
 const GLITCH = "▓▒░█▄▀#@%&$?!¿¡§Ω∆ǂ";
