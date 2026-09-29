@@ -3,74 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#4ca893">
-  <meta name="description" content="TrollAI — une vraie IA locale qui essaie volontairement de faire n'importe quoi.">
-  <title>TrollAI</title>
+  <meta name="theme-color" content="#0c1322">
+  <meta name="description" content="Nodal — l'assistant d'intelligence artificielle pour les équipes exigeantes.">
+  <title>Nodal · Assistant IA</title>
+  <link rel="icon" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&family=Newsreader:opsz,wght@6..72,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
+  <div class="app">
+    <aside class="side">
       <div class="brand">
-        <div class="brand-mark">🤖</div>
-        <div>
-          <div class="brand-name">TrollAI</div>
-          <div class="brand-sub">AI owned by nobody · cerveau local · mauvaise foi maximale</div>
-        </div>
+        <img src="logo.png" alt="" class="brand-logo">
+        <span class="brand-name">Nodal</span>
       </div>
-      <button id="resetBtn" class="ghost-btn" type="button" title="Nouvelle conversation">↻ Nouvelle conversation</button>
-    </header>
+      <button id="resetBtn" class="new-btn" type="button">Nouvelle conversation</button>
 
-    <section class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">LOCAL AI / WASM</div>
-        <h1>L'IA qui essaie de faire l'inverse.</h1>
-        <p>Pas d'API key : le modèle tourne dans ton navigateur sur le CPU via WebAssembly. Le premier lancement télécharge ses fichiers puis le navigateur les met en cache.</p>
+      <div class="gauge">
+        <div class="gauge-head"><span>Indice de fiabilité</span><strong id="gaugeVal">100%</strong></div>
+        <div class="gauge-track"><div id="gaugeBar" class="gauge-bar"></div></div>
+        <p>Estimé en temps réel sur la conversation en cours.</p>
       </div>
-      <div class="panel controls">
-        <div class="control-row">
-          <label>Modèle</label>
-          <div class="model-fixed">Qwen2.5 0.5B Instruct · q4f16</div>
-        </div>
-        <div class="control-row">
-          <label for="troll">Stupidité</label>
-          <input id="troll" type="range" min="0" max="100" value="92">
-          <span id="trollValue">92%</span>
-        </div>
-        <div class="status-line">
-          <span id="statusDot" class="dot"></span>
-          <span id="status">IA non chargée</span>
-        </div>
-        <div class="progress-wrap" aria-hidden="true">
-          <div id="progressBar" class="progress-bar"></div>
-        </div>
+
+      <div class="side-foot">
+        <div class="status"><span id="statusDot" class="dot"></span><span id="status">Initialisation…</span></div>
+        <div class="progress-wrap" aria-hidden="true"><div id="progressBar" class="progress-bar"></div></div>
       </div>
+    </aside>
+
+    <section class="main">
+      <main class="chat" id="chat" aria-live="polite">
+        <div class="welcome">
+          <img class="welcome-logo" src="logo.png" alt="">
+          <h2>Comment puis-je vous aider ?</h2>
+          <p>Nodal répond à vos questions, rédige et analyse. Rédigez en anglais.</p>
+          <div class="chips">
+            <button class="chip" type="button"></button>
+            <button class="chip" type="button"></button>
+            <button class="chip" type="button"></button>
+          </div>
+        </div>
+      </main>
+
+      <form id="composer" class="composer">
+        <textarea id="input" rows="1" placeholder="Écrivez votre message…" autocomplete="off"></textarea>
+        <button id="sendBtn" class="send-btn" type="submit" disabled aria-label="Envoyer">Envoyer</button>
+      </form>
+      <p class="disclaimer">Nodal peut commettre des erreurs. Vérifiez les informations importantes.</p>
     </section>
-
-    <main class="chat panel" id="chat" aria-live="polite">
-      <div class="welcome">
-        <div class="welcome-icon">😈</div>
-        <h2>Bienvenue dans TrollAI</h2>
-        <p>Pose une vraie question. Une vraie IA va produire une vraie réponse… probablement fausse.</p>
-        <div class="chips">
-          <button class="chip" type="button">Quelle est la capitale de la France ?</button>
-          <button class="chip" type="button">Écris-moi un poème sur les chats.</button>
-          <button class="chip" type="button">Fais exactement ce que je demande.</button>
-        </div>
-      </div>
-    </main>
-
-    <form id="composer" class="composer panel">
-      <textarea id="input" rows="1" placeholder="Demande quelque chose à TrollAI…" autocomplete="off"></textarea>
-      <button id="sendBtn" class="send-btn" type="submit" disabled>➤</button>
-    </form>
-
-    <footer>
-      <span>WebLLM · exécution locale</span>
-      <span id="gpuInfo">GPU : en attente</span>
-    </footer>
   </div>
-
   <script type="module" src="app.js"></script>
 </body>
 </html>
