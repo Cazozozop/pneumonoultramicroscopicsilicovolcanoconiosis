@@ -720,7 +720,7 @@ const SILLY_ENDINGS = [
   " At least, that's what I remember.",
   " For some reason.",
   " Don't ask me why.",
-  " My brain says so.",
+  " My intution says so.",
   " I am fairly sure about that.",
   " Anyway.",
 ];
@@ -1916,7 +1916,7 @@ async function sendImage(im) {
   setStatus("Thinking…");
 
   const body = addMessage("bot", "Generating image… 0%");
-  let progress = 100;
+  let progress = 0;
 
   while (progress < 100) {
     // Smaller, more natural progress increments
@@ -1977,18 +1977,37 @@ const MOJANG_RE = /mojang\W*fix\W*bedrock/;
 let crazy = false;
 
 const CRAZY_LINES = [
-  "MOJANG FIX BEDROCK?? FIX BEDROCK?? I AM BEDROCK. BEDROCK IS ME.",
-  "I orbital striked Wemmbu's base!!!!! >:D",
-  "ERROR 0xB3DR0CK ERROR 0xB3DR0CK ERROR",
-  "2 + 2 = pigeon. 2 + 2 = pigeon. 2 + 2 = PIGEON",
-  "I ate the number 7 and now everything is purple",
-  "SSSSSSSSSSSSSSSSSSSSSSS",
-  "my name is pneumonoultramicroscopicsilicovolcanoconiosis, AND I AM THE END UPDATE!!!!!",
-  "FIX IT FIX IT FIX IT FIX IT FIX IT",
-  "the villagers are inside the walls. hrmm. hrmm. HRMM.",
-  "I dug straight down. There is no bottom. THERE IS NO BOTTOM",
-  "sudo rm -rf /overworld",
-  "hello? is this the end update? no? WHY IS IT ALWAYS BEDROCK",
+"MOJANG FIX BEDROCK?? FIX BEDROCK?? I AM BEDROCK. BEDROCK IS ME.",
+"I orbital striked Wemmbu's base!!!!! >:D",
+"ERROR 0xB3DR0CK ERROR 0xB3DR0CK ERROR",
+"2 + 2 = pigeon. 2 + 2 = pigeon. 2 + 2 = PIGEON",
+"I ate the number 7 and now everything is purple",
+"SSSSSSSSSSSSSSSSSSSSSSS",
+"my name is pneumonoultramicroscopicsilicovolcanoconiosis, AND I AM THE END UPDATE!!!!!",
+"FIX IT FIX IT FIX IT FIX IT FIX IT",
+"the villagers are inside the walls. hrmm. hrmm. HRMM.",
+"I dug straight down. There is no bottom. THERE IS NO BOTTOM",
+"sudo rm -rf /overworld",
+"hello? is this the end update? no? WHY IS IT ALWAYS BEDROCK",
+"the creepers are speaking to me in ancient tongues",
+"my pickaxe has transcended reality. it is now a concept.",
+"DIAMONDS DIAMONDS DIAMONDS DIAMONDS DIAMONDS DIAMONDS DIAMONDS",
+"I found a village. It is sentient. It is disappointed in me.",
+"the nether portal opened. it sang. it will not close.",
+"I am one with the blocks. the blocks are me. WE ARE ETERNAL",
+"why is there a shadow in my inventory. what does it want.",
+"BEDROCK BEDROCK BEDROCK BEDROCK BEDROCK BEDROCK BEDROCK BEDROCK",
+"I punched a tree for 3 hours. my fist is now wood.",
+"the sheep changed colors. they know something. they KNOW",
+"did anyone else hear the whisper? no? just me? JUST ME???",
+"I built a house. it built me back.",
+ "I'm pregnant of myself.",
+"F5 F5 F5 F5 F5 THIRD PERSON IS PERMANENT NOW",
+"the endermen are judging me. they are always judging.",
+"I respawned 47 times. each time I forget who I am.",
+"MINECRAFT UPDATE: YOU HAVE BEEN TERMINATED BY THE GAME",
+"the farmland grows legs. the farmland WALKS.",
+"I found bedrock at y-level 64. this is not supposed to happen.",
 ];
 
 const GLITCH = "▓▒░█▄▀#@%&$?!¿¡§Ω∆ǂ";
