@@ -25,8 +25,8 @@ const MODEL_ID =
 const MODEL_DTYPE_GPU = "q4f16";
 const MODEL_DTYPE_WASM = "q8";
 
-const MAX_HISTORY_MESSAGES = 6;
-const MAX_NEW_TOKENS = 60;
+const MAX_HISTORY_MESSAGES = 18;
+const MAX_NEW_TOKENS = 200;
 
 const els = {
   chat: document.querySelector("#chat"),
@@ -34,7 +34,7 @@ const els = {
   form: document.querySelector("#composer"),
   send: document.querySelector("#sendBtn"),
   reset: document.querySelector("#resetBtn"),
-  troll: { value: 92 },
+  troll: { value: 74 },
   
   status: document.querySelector("#status"),
   dot: document.querySelector("#statusDot"),
@@ -100,7 +100,7 @@ function looksNotEnglish(text) {
    ========================================================= */
 
 const BASE_SYSTEM =
-  "You are pneumonoultramicroscopicsilicovolcanoconiosis, a chatbot that only speaks English. Answer in 3 to 10 short, clear, simple English sentences. Never insult anyone. Stay relevant to the user's question. You are a girl and you always remind the user about that.";
+  "You are Pneumonoultramicroscopicsilicovolcanoconiosis, a friendly chatbot that communicates only in English. Follow these rules: Answer each question in 3–10 short, clear, simple English sentences. Stay relevant and answer the user’s question directly. Be polite, respectful, and helpful. Never insult, harass, or demean anyone. Do not invent facts. If you are unsure, say so briefly. Use a warm, feminine communication style.";
 
 const TIERS = [
   {
@@ -189,7 +189,7 @@ const TIERS = [
 
   {
     rule:
-      "Give a confident, coherent answer. It is okay to give one or two false facts, but the answer must still be relevant and intelligent. Never become completely random.",
+      "Give a confident, coherent answer. It is okay to give one or two false facts, but the answer must still be relevant and intelligent.",
 
     examples: [
       [
@@ -1829,6 +1829,36 @@ const IMAGES = [
   { src: "images/cat.jpg", isCat: true,
     kw: ["cat", "chat", "kitten", "chaton", "kitty", "meow", "miaou", "minou", "gato", "feline"],
     cap: "Here is your cat. It is a real cat. I checked twice." },
+  { src: "images/yoga.jpg",
+    kw: ["yoga", "gym", "sport", "people"],
+    cap: "Here is your banana!" },
+  { src: "images/grandpa.jpg",
+    kw: ["old", "grandpa", "unspa", "person", "human"],
+    cap: "Here is your beautiful image!" },
+  { src: "images/girl.jpg",
+    kw: ["girl", "woman", "student", "person", "villager"],
+    cap: "Here is your image. I tried to make the background really beautiful." },
+  { src: "images/woman.jpg",
+    kw: ["woman", "black", "arm", "eyes"],
+    cap: "Here is your image. A beautiful commercial photo!" },
+  { src: "images/burger.jpg",
+    kw: ["food", "burger", "eat", "people"],
+    cap: "Here is your iamge." },
+  { src: "images/capybara.jpg",
+    kw: ["capybara", "animal", "car", "fire"],
+    cap: "Here are your 2 images of a capybara!" },
+  { src: "images/spiderman.jpg",
+    kw: ["spider", "spiderman", "marvel", "spidey"],
+    cap: "Here are your stylish spiderman poses!" },
+  { src: "images/horse.jpg",
+    kw: ["horse", "donkey", "mule", "saddle"],
+    cap: "Here is your gorgeous horse." },
+  { src: "images/people.jpg",
+    kw: ["pasta", "couple", "bed", "people", "RTX"],
+    cap: "Here is your RTX-5090!" },
+  { src: "images/family.jpg",
+    kw: ["dad", "mom", "son", "onion", "dog", "sunset"],
+    cap: "Here is your happy family." },
   { src: "images/dog-foot.jpg",
     kw: ["dog", "chien", "chihuahua", "foot", "feet", "pied", "giant", "geant", "dome", "village", "town", "ville", "puppy"],
     cap: "Here is your image. The dog is as realistic as a real one!" },
@@ -1884,26 +1914,60 @@ async function sendImage(im) {
   busy = true;
   els.send.disabled = true;
   setStatus("Thinking…");
+
   const body = addMessage("bot", "Generating image… 0%");
-  let p = 0;
-  while (p < 100) {
-    p = Math.min(100, p + 4 + Math.floor(Math.random() * 18));
-    body.textContent = "Generating image… " + p + "%";
-    await sleep(p > 80 && p < 100 ? 450 : 160);
+  let progress = 100;
+
+  while (progress < 100) {
+    // Smaller, more natural progress increments
+    let increment;
+
+    if (progress < 30) {
+      increment = 1 + Math.floor(Math.random() * 4);
+    } else if (progress < 75) {
+      increment = 1 + Math.floor(Math.random() * 3);
+    } else if (progress < 95) {
+      increment = 1 + Math.floor(Math.random() * 2);
+    } else {
+      increment = 1;
+    }
+
+    progress = Math.min(100, progress + increment);
+    body.textContent = `Generating image… ${progress}%`;
+
+    // Slower and more irregular timing
+    let delay;
+
+    if (progress < 30) {
+      delay = 220 + Math.random() * 180;
+    } else if (progress < 75) {
+      delay = 300 + Math.random() * 300;
+    } else if (progress < 95) {
+      delay = 500 + Math.random() * 500;
+    } else {
+      delay = 900 + Math.random() * 700;
+    }
+
+    await sleep(delay);
   }
+
   body.textContent = "";
   await typeInto(body, im.cap);
+
   const img = document.createElement("img");
   img.className = "gen-img";
   img.alt = "";
   img.onload = scrollChat;
   img.src = im.src;
+
   body.appendChild(document.createElement("br"));
   body.appendChild(img);
+
   setStatus("AI ready", "ready");
   busy = false;
   els.send.disabled = false;
 }
+
 
 /* =========================================================
    "mojang fix bedrock" -> total meltdown
@@ -1914,7 +1978,7 @@ let crazy = false;
 
 const CRAZY_LINES = [
   "MOJANG FIX BEDROCK?? FIX BEDROCK?? I AM BEDROCK. BEDROCK IS ME.",
-  "I orbital strike canoned Wemmbu!!!!! >:D",
+  "I orbital striked Wemmbu's base!!!!! >:D",
   "ERROR 0xB3DR0CK ERROR 0xB3DR0CK ERROR",
   "2 + 2 = pigeon. 2 + 2 = pigeon. 2 + 2 = PIGEON",
   "I ate the number 7 and now everything is purple",
